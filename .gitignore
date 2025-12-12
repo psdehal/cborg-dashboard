@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project-specific
+.cborg_data/
+*.json
+!package.json
+.env
+*.log
+
+# Claude Code
+.claude/
+
+# Exploration scripts (temporary)
+explore_spending.py
+test_spend.py
