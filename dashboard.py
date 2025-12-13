@@ -202,6 +202,10 @@ class CBORGDashboard:
         """Display spending information."""
         spend_info = self.client.get_spend_info()
 
+        # Record spend history if available
+        if spend_info and spend_info.get('current_spend') is not None:
+            self.storage.add_spend_record(self.api_key, spend_info)
+
         if spend_info and spend_info.get('current_spend') is not None:
             # Display actual spend data
             grid = Table.grid(padding=(0, 2))
@@ -314,6 +318,7 @@ def show_team_dashboard(team_keys: List[Dict]):
     total_spend = 0
     total_budget = 0
     all_models = []
+    storage = CBORGStorage()
 
     for member in team_keys:
         api_key = member.get('api_key')
@@ -335,6 +340,10 @@ def show_team_dashboard(team_keys: List[Dict]):
                     pass
 
             spend_info = client.get_spend_info()
+
+            # Record spend history for this team member
+            if spend_info and spend_info.get('current_spend') is not None:
+                storage.add_spend_record(api_key, spend_info)
 
             if spend_info and spend_info.get('current_spend') is not None:
                 current_spend = spend_info.get('current_spend', 0)

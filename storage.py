@@ -92,20 +92,43 @@ class CBORGStorage:
         }
 
     def add_spend_record(self, api_key: str, spend_info: Dict) -> None:
-        """Add a spend record to history."""
+        """
+        Add a spend record to history if spend has changed since last record.
+
+        Only creates a new record if current_spend differs from the last recorded value.
+        This prevents duplicate entries when running dashboard multiple times without usage.
+        """
         data = self.load_data(api_key)
 
-        spend_record = {
-            'timestamp': datetime.now().isoformat(),
-            **spend_info
-        }
+        current_spend = spend_info.get('current_spend')
+
+        # Check if we should add a new record
+        should_add = True
+        history = data['spend']['history']
+
+        if history and current_spend is not None:
+            last_record = history[-1]
+            last_spend = last_record.get('current_spend')
+
+            # Only add if spend changed
+            if last_spend == current_spend:
+                should_add = False
+
+        if should_add and current_spend is not None:
+            spend_record = {
+                'timestamp': datetime.now().isoformat(),
+                'current_spend': spend_info.get('current_spend'),
+                'budget_limit': spend_info.get('budget_limit'),
+                'remaining': spend_info.get('remaining'),
+                'key_alias': spend_info.get('key_alias')
+            }
+
+            data['spend']['history'].append(spend_record)
+
+            # Keep only last 365 records (roughly 1 year of daily checks)
+            data['spend']['history'] = data['spend']['history'][-365:]
 
         data['spend']['last_check'] = datetime.now().isoformat()
-        data['spend']['history'].append(spend_record)
-
-        # Keep only last 100 records
-        data['spend']['history'] = data['spend']['history'][-100:]
-
         self.save_data(api_key, data)
 
     def get_last_check(self, api_key: str) -> Optional[str]:
