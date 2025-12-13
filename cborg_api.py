@@ -67,6 +67,10 @@ class CBORGClient:
                 'reset_date': info.get('budget_reset_at'),
                 'key_alias': info.get('key_alias'),
                 'created_at': info.get('created_at'),
+                'updated_at': info.get('updated_at'),
+                'expires': info.get('expires'),
+                'blocked': info.get('blocked'),
+                'soft_budget_cooldown': info.get('soft_budget_cooldown'),
                 'model_spend': info.get('model_spend', {})
             }
 

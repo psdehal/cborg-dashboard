@@ -281,7 +281,12 @@ def show_team_dashboard(team_keys: List[Dict]):
                     'email': email,
                     'spend': current_spend,
                     'budget': budget_limit,
-                    'remaining': remaining
+                    'remaining': remaining,
+                    'created_at': spend_info.get('created_at'),
+                    'updated_at': spend_info.get('updated_at'),
+                    'expires': spend_info.get('expires'),
+                    'blocked': spend_info.get('blocked'),
+                    'soft_budget_cooldown': spend_info.get('soft_budget_cooldown')
                 })
 
                 total_spend += current_spend
@@ -294,7 +299,12 @@ def show_team_dashboard(team_keys: List[Dict]):
                     'email': email,
                     'spend': None,
                     'budget': None,
-                    'remaining': None
+                    'remaining': None,
+                    'created_at': None,
+                    'updated_at': None,
+                    'expires': None,
+                    'blocked': None,
+                    'soft_budget_cooldown': None
                 })
         except Exception as e:
             console.print(f"[yellow]Warning: Failed to fetch data for {name}: {e}[/yellow]")
@@ -304,7 +314,12 @@ def show_team_dashboard(team_keys: List[Dict]):
                 'email': email,
                 'spend': None,
                 'budget': None,
-                'remaining': None
+                'remaining': None,
+                'created_at': None,
+                'updated_at': None,
+                'expires': None,
+                'blocked': None,
+                'soft_budget_cooldown': None
             })
 
     # Display team spending table
@@ -353,6 +368,84 @@ def show_team_dashboard(team_keys: List[Dict]):
         )
 
     console.print(table)
+    console.print()
+
+    # Show key activity and status
+    activity_table = Table(title="[bold]Key Activity & Status[/bold]",
+                          box=box.ROUNDED, border_style="cyan")
+    activity_table.add_column("Name", style="cyan")
+    activity_table.add_column("Key Age", justify="right", style="dim")
+    activity_table.add_column("Last Activity", justify="right", style="white")
+    activity_table.add_column("Expires", justify="right", style="dim")
+    activity_table.add_column("Status", justify="center")
+
+    def format_relative_time(dt_str: Optional[str]) -> str:
+        """Format datetime string as relative time."""
+        if not dt_str:
+            return "N/A"
+        try:
+            dt = date_parser.isoparse(dt_str)
+            now = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
+            diff = now - dt
+
+            if diff.days > 0:
+                return f"{diff.days}d ago"
+            elif diff.seconds >= 3600:
+                hours = diff.seconds // 3600
+                return f"{hours}h ago"
+            elif diff.seconds >= 60:
+                minutes = diff.seconds // 60
+                return f"{minutes}m ago"
+            else:
+                return "just now"
+        except:
+            return "N/A"
+
+    for member in team_data:
+        created = member.get('created_at')
+        updated = member.get('updated_at')
+        expires = member.get('expires')
+        blocked = member.get('blocked')
+        cooldown = member.get('soft_budget_cooldown')
+
+        # Calculate key age
+        if created:
+            try:
+                created_dt = date_parser.isoparse(created)
+                now = datetime.now(created_dt.tzinfo) if created_dt.tzinfo else datetime.now()
+                age_days = (now - created_dt).days
+                age_str = f"{age_days} days"
+            except:
+                age_str = "N/A"
+        else:
+            age_str = "N/A"
+
+        # Last activity
+        last_activity = format_relative_time(updated)
+
+        # Expiration
+        expires_str = "Never" if not expires else expires
+
+        # Status with warnings
+        status_parts = []
+        if blocked:
+            status_parts.append("[red bold]BLOCKED[/red bold]")
+        if cooldown:
+            status_parts.append("[yellow]Cooldown[/yellow]")
+        if not status_parts:
+            status_parts.append("[green]Active[/green]")
+
+        status_str = " ".join(status_parts)
+
+        activity_table.add_row(
+            member['name'],
+            age_str,
+            last_activity,
+            expires_str,
+            status_str
+        )
+
+    console.print(activity_table)
     console.print()
 
     # Show team totals
