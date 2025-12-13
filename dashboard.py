@@ -388,6 +388,13 @@ def show_team_dashboard(team_keys: List[Dict]):
                 'soft_budget_cooldown': None
             })
 
+    # Sort team data: PI first, then by current spend (descending)
+    pi_members = [m for m in team_data if m['role'] == 'PI']
+    non_pi_members = [m for m in team_data if m['role'] != 'PI']
+    # Sort non-PI by spend, handling None values
+    non_pi_members.sort(key=lambda m: m['spend'] if m['spend'] is not None else 0, reverse=True)
+    sorted_team_data = pi_members + non_pi_members
+
     # Display team spending table
     table = Table(title="[bold]Team Spending Overview[/bold]",
                  box=box.ROUNDED, border_style="magenta")
@@ -399,7 +406,7 @@ def show_team_dashboard(team_keys: List[Dict]):
     table.add_column("Remaining", justify="right", style="white")
     table.add_column("Usage %", justify="right")
 
-    for member in team_data:
+    for member in sorted_team_data:
         spend = member['spend']
         budget = member['budget']
         remaining = member['remaining']
@@ -467,7 +474,20 @@ def show_team_dashboard(team_keys: List[Dict]):
         except:
             return "N/A"
 
-    for member in team_data:
+    # Sort by last activity (most recent first)
+    def get_activity_sort_key(member):
+        """Get sort key for activity - most recent first."""
+        updated = member.get('updated_at')
+        if not updated:
+            return datetime.min  # Put entries with no activity at the end
+        try:
+            return date_parser.isoparse(updated)
+        except:
+            return datetime.min
+
+    sorted_by_activity = sorted(team_data, key=get_activity_sort_key, reverse=True)
+
+    for member in sorted_by_activity:
         created = member.get('created_at')
         updated = member.get('updated_at')
         expires = member.get('expires')
