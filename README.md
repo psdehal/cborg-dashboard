@@ -4,12 +4,22 @@ A terminal-based dashboard for monitoring LBNL CBORG service usage and models.
 
 ## Features
 
-- 📊 Track 181+ AI models from OpenAI, Anthropic, Google, xAI, and LBL-hosted services
-- 🆕 Automatically detect and highlight new models since your last check
-- 💰 Monitor API spending (when available via API)
-- 🔑 Support multiple API keys with separate tracking for each
-- 💾 Local JSON-based storage for historical data
-- 🎨 Beautiful terminal UI with color-coded output
+### Core Functionality
+- 📊 **Model Tracking** - Monitor 181+ AI models from OpenAI, Anthropic, Google, xAI, and LBL-hosted services
+- 🆕 **New Model Detection** - Automatically detect and highlight new models since your last check
+- 🎯 **Latest Frontier Models** - Quick view of top models from OpenAI, Anthropic, and Google
+- 💰 **Spend Tracking** - Real-time budget monitoring with color-coded warnings
+- 📈 **Spend History** - Automatic time-series tracking for trend analysis
+- 👥 **Team Mode** - Multi-user dashboard for PIs managing team spending
+- 🔑 **Multi-Key Support** - Track multiple API keys with separate data storage
+- 💾 **Local Storage** - JSON-based storage indexed by API key hash
+- 🎨 **Rich Terminal UI** - Beautiful color-coded output with tables and panels
+
+### Team Management
+- 👀 **Activity Monitoring** - Track last usage, key age, and expiration dates
+- ⚠️ **Status Warnings** - Detect blocked keys, budget cooldowns, and inactive users
+- 📊 **Team Analytics** - Aggregate spending, usage percentages, and activity trends
+- 🔐 **Secure Configuration** - Gitignored team keys with 600 file permissions
 
 ## Quick Start
 
@@ -33,14 +43,25 @@ python dashboard.py
 
 ## What You'll See
 
-The dashboard displays:
+### Single-User Mode
 1. **Connection Status** - Verifies API connectivity
 2. **Model Summary** - Total models, new models, and last check time
 3. **New Models** - Highlighted table of newly discovered models (yellow)
 4. **All Models** - Complete list organized alphabetically
    - Green: LBL-hosted models (lbl/*)
    - Cyan: Commercial models (OpenAI, Anthropic, Google, etc.)
-5. **Spend Information** - Current spend and budget (when API supports it)
+5. **Latest Frontier Models** - Top models from OpenAI, Anthropic, Google
+6. **Spending Information** - Current spend, budget, remaining, usage %
+
+### Team Mode
+1. **Team Spending Overview** - Individual spending for each member
+   - Sorted: PI first, then by spend (highest first)
+   - Color-coded usage warnings
+2. **Key Activity & Status** - Track team member activity
+   - Sorted by last activity (most recent first)
+   - Shows key age, last usage, expiration, status
+3. **Team Totals** - Aggregate spending and budget across all members
+4. **Latest Frontier Models** - Same as single-user mode
 
 ## Multiple API Keys
 
@@ -95,16 +116,78 @@ Example `team_keys.json`:
 }
 ```
 
-Team mode displays:
-- Individual spending for each team member
-- Team totals (spend, budget, remaining)
-- Color-coded usage warnings (red >90%, yellow >75%, green <75%)
+**Team mode displays:**
+- **Team Spending Overview**
+  - Individual spending for each member (PI first, then sorted by spend)
+  - Current spend, budget, remaining, usage percentage
+  - Color-coded warnings: 🟢 green <75%, 🟡 yellow 75-90%, 🔴 red >90%
+- **Key Activity & Status**
+  - Last activity timestamp (sorted most recent first)
+  - Key age (days since creation)
+  - Expiration dates
+  - Status warnings (Active, Cooldown, BLOCKED)
+- **Team Totals**
+  - Aggregate spending across all members
+  - Total budget and remaining funds
+  - Overall team usage percentage
+- **Latest Frontier Models** (same as single-user mode)
+
+**Use Cases:**
+- Identify top spenders in your team
+- Detect inactive team members (no activity in >7 days)
+- Monitor for budget issues (blocked keys, cooldowns)
+- Track team-wide spending trends
 
 **Security Notes:**
 - `team_keys.json` is gitignored (never committed)
 - Use `chmod 600 team_keys.json` to restrict access
 - Keep this file on encrypted disk (FileVault on macOS)
 - Never share via email/Slack
+
+## Data Storage & History
+
+The dashboard automatically stores data in `.cborg_data/` indexed by API key hash:
+
+```
+.cborg_data/
+├── c33edd494d929aa2.json  # Your key's data
+├── 9ef74bb459ec8365.json  # Team member 1
+└── 391ec8ce45ba2790.json  # Team member 2
+```
+
+**Each file contains:**
+- API key preview (first 8 + last 4 chars)
+- Known models list
+- **Spend history** - Timestamped snapshots of spending
+  - Only records when spend changes (no duplicates)
+  - Stores up to 365 records (~1 year of daily checks)
+  - Tracks: spend, budget, remaining, timestamp, key alias
+
+**Spend history format:**
+```json
+{
+  "spend": {
+    "last_check": "2025-12-12T21:31:32",
+    "history": [
+      {
+        "timestamp": "2025-12-12T21:31:32",
+        "current_spend": 1992.57,
+        "budget_limit": 4000.0,
+        "remaining": 2007.43,
+        "key_alias": "user@lbl.gov"
+      }
+    ]
+  }
+}
+```
+
+**Future Capabilities:**
+With historical data accumulating, you can build:
+- Spend velocity graphs: "Spending $15/day average"
+- Budget projections: "Budget exhausted in ~45 days"
+- Usage spike detection: "Spending jumped 300% yesterday"
+- Team trend analysis: Who's ramping up vs slowing down
+- Export to CSV/JSON for reporting
 
 ## CBORG Service
 

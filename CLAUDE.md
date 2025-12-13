@@ -7,23 +7,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a terminal-based dashboard for monitoring the LBNL CBORG service. CBORG is a multi-model AI portal that provides access to various LLM services (OpenAI, Anthropic Claude, Google Gemini, local models, etc.) through an OpenAI-compatible API.
 
 The dashboard tracks:
-- Available AI models
+- Available AI models (181+ across all providers)
 - New models since last check
-- API spending (when available)
+- Latest frontier models from OpenAI, Anthropic, Google
+- **Real-time spending and budget monitoring**
+- **Historical spend data (time-series tracking)**
+- **Team member activity and status**
 
-Data is stored locally in `.cborg_data/` indexed by API key hash, allowing users to track multiple keys separately.
+**Key Features:**
+- Single-user mode: Individual tracking with CBORG_API_KEY
+- Team mode: Multi-user dashboard via team_keys.json
+- Spend history: Automatic timestamped snapshots (up to 365 records)
+- Activity monitoring: Last usage, key age, expiration, status
+- Secure storage: Local JSON files indexed by API key hash
 
 ## Project Structure
 
 ```
 .
-├── dashboard.py        # Main dashboard application (Rich terminal UI)
-├── cborg_api.py        # CBORG API client wrapper
-├── storage.py          # Local JSON-based data storage
-├── test_api.py         # API testing/debugging script
-├── run.sh              # Convenience script to run dashboard
-├── requirements.txt    # Python dependencies
-└── .cborg_data/        # Local data storage (gitignored)
+├── dashboard.py              # Main dashboard application (Rich terminal UI)
+├── cborg_api.py              # CBORG API client wrapper
+├── storage.py                # Local JSON-based data storage with history tracking
+├── test_api.py               # API testing/debugging script
+├── run.sh                    # Convenience script to run dashboard
+├── requirements.txt          # Python dependencies
+├── team_keys.json            # Team API keys config (gitignored, created by user)
+├── team_keys.json.template   # Template for team configuration
+├── README.md                 # User documentation
+├── CLAUDE.md                 # Developer/AI assistant documentation
+└── .cborg_data/              # Local data storage (gitignored)
+    ├── <key_hash>.json       # Per-key data files
+    └── ...                   # One file per tracked API key
 ```
 
 ## Development Commands
@@ -67,12 +81,18 @@ CBORG_API_KEY=different-key python dashboard.py
 - **Base URL**: `https://api.cborg.lbl.gov`
 - **Protocol**: OpenAI-compatible API
 - **Authentication**: Bearer token via `CBORG_API_KEY` environment variable
-- **Working Endpoint**: `/v1/models` - returns list of available models
-- **Non-working Endpoints**: `/user/info` returns 404 (may require different auth)
+- **Working Endpoints**:
+  - `/v1/models` - List of available models (181+ models)
+  - `/key/info` - Key information, spending, budget, status
+- **Non-working Endpoints**:
+  - `/user/info` returns 404
+  - `/key/usage`, `/key/stats`, `/key/history` return 404
+  - No per-model spend breakdown available (field exists but empty)
 
 ### Data Storage
 - Files stored in `.cborg_data/<key_hash>.json`
 - Key hash: First 16 chars of SHA-256 hash of API key
+- One file per API key (supports multi-user tracking)
 - Structure:
   ```json
   {
@@ -86,10 +106,24 @@ CBORG_API_KEY=different-key python dashboard.py
     },
     "spend": {
       "last_check": "ISO8601 timestamp",
-      "history": [...]
+      "history": [
+        {
+          "timestamp": "2025-12-12T21:31:32",
+          "current_spend": 1992.57,
+          "budget_limit": 4000.0,
+          "remaining": 2007.43,
+          "key_alias": "user@lbl.gov"
+        }
+      ]
     }
   }
   ```
+
+**Spend History Tracking:**
+- Automatically records snapshots each dashboard run
+- Only adds entry if spend changed (prevents duplicates)
+- Stores up to 365 records (~1 year of daily checks)
+- Enables future trend analysis and projections
 
 ### Dashboard UI (Rich library)
 - Uses `rich` for terminal rendering
@@ -104,9 +138,17 @@ CBORG_API_KEY=different-key python dashboard.py
 ## Key Features
 
 1. **Model Tracking**: Compares current model list against previously seen models to identify new additions
-2. **Multi-key Support**: Data indexed by API key hash allows tracking different keys separately
-3. **Spend Monitoring**: Placeholder for spend tracking (API endpoint not currently accessible)
-4. **Relative Timestamps**: Shows "X days ago", "X hours ago" for last check times
+2. **Frontier Models**: Automatically curates top models from OpenAI (GPT-5, O-series), Anthropic (Opus/Sonnet 4.5), Google (Gemini 3 Pro)
+3. **Multi-key Support**: Data indexed by API key hash allows tracking different keys separately
+4. **Spend Monitoring**: Real-time tracking via `/key/info` endpoint with budget warnings
+5. **Spend History**: Timestamped snapshots (up to 365 records) for trend analysis
+6. **Team Mode**: Multi-user dashboard when `team_keys.json` exists
+   - Individual spending per member
+   - Activity monitoring (last usage, key age, status)
+   - Aggregate team totals
+   - Smart sorting (PI first, then by spend; activity by most recent)
+7. **Relative Timestamps**: Shows "X days ago", "X hours ago" for last check times
+8. **Security**: File permissions (600), gitignored secrets, API key hashing
 
 ## Common Tasks
 
@@ -168,3 +210,29 @@ source venv/bin/activate
 source venv/bin/activate
 pip install -r requirements.txt
 ```
+
+## Future Enhancements
+
+With spend history now tracking, potential additions:
+
+1. **Trend Visualization**
+   - Graph spend over time
+   - Daily/weekly burn rate calculations
+   - Budget exhaustion projections
+
+2. **Enhanced Analytics**
+   - Usage spike detection
+   - Team member comparisons
+   - Cost optimization recommendations
+
+3. **Export Capabilities**
+   - CSV export for reporting (`--export csv`)
+   - JSON export for external analysis
+   - Monthly summary reports
+
+4. **Alerting** (if needed)
+   - Email/Slack notifications for budget thresholds
+   - Inactive user warnings
+   - Blocked key alerts
+
+**Current Status:** Core functionality complete. Dashboard is production-ready. Historical data is accumulating automatically for future analysis.
