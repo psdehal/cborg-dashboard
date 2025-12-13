@@ -30,6 +30,60 @@ class CBORGDashboard:
         self.client = CBORGClient(api_key)
         self.storage = CBORGStorage()
 
+    def _get_frontier_models(self, all_models: List[str]) -> Dict[str, List[str]]:
+        """Extract latest frontier models from major providers."""
+        frontier = {
+            'OpenAI': [],
+            'Anthropic': [],
+            'Google': []
+        }
+
+        # OpenAI frontier models (prioritize GPT-5.x, O-series)
+        openai_priority = ['gpt-5.1', 'gpt-5', 'o4-mini', 'o3', 'gpt-4.1']
+        for model in openai_priority:
+            matching = [m for m in all_models if model in m.lower() and not any(x in m.lower() for x in ['mini', 'nano', 'high', 'codex']) or model == m.lower()]
+            if matching:
+                frontier['OpenAI'].append(matching[0])
+                if len(frontier['OpenAI']) >= 3:
+                    break
+
+        # Anthropic frontier models (Opus > Sonnet > Haiku, prefer 4.5)
+        anthropic_priority = ['claude-opus-4-5', 'claude-opus-4', 'claude-sonnet-4-5', 'claude-sonnet-4']
+        for model in anthropic_priority:
+            matching = [m for m in all_models if model in m.lower() and '@' not in m]
+            if matching:
+                frontier['Anthropic'].append(matching[0])
+                if len(frontier['Anthropic']) >= 2:
+                    break
+
+        # Google frontier models (Gemini 3 > 2.5)
+        google_priority = ['gemini-3-pro', 'gemini-2.5-pro', 'gemini-2.5-flash']
+        for model in google_priority:
+            matching = [m for m in all_models if model in m.lower() and 'high' not in m.lower() and 'lite' not in m.lower()]
+            if matching:
+                frontier['Google'].append(matching[0])
+                if len(frontier['Google']) >= 2:
+                    break
+
+        return frontier
+
+    def _show_frontier_models(self, all_models: List[str]):
+        """Display latest frontier models from major providers."""
+        frontier = self._get_frontier_models(all_models)
+
+        table = Table(title="[bold]Latest Frontier Models[/bold]",
+                     box=box.ROUNDED, border_style="blue")
+        table.add_column("Provider", style="cyan bold", width=12)
+        table.add_column("Flagship Models", style="white")
+
+        for provider, models in frontier.items():
+            if models:
+                models_str = ", ".join(models[:3])  # Max 3 models per provider
+                table.add_row(provider, models_str)
+
+        self.console.print(table)
+        self.console.print()
+
     def run(self):
         """Run the dashboard."""
         self.console.clear()
@@ -111,6 +165,9 @@ class CBORGDashboard:
 
         # Show all models
         self._show_all_models(result['all_models'])
+
+        # Show frontier models
+        self._show_frontier_models(result['all_models'])
 
     def _show_new_models(self, new_models: list):
         """Display new models in a highlighted table."""
@@ -256,6 +313,7 @@ def show_team_dashboard(team_keys: List[Dict]):
     team_data = []
     total_spend = 0
     total_budget = 0
+    all_models = []
 
     for member in team_keys:
         api_key = member.get('api_key')
@@ -268,6 +326,14 @@ def show_team_dashboard(team_keys: List[Dict]):
 
         try:
             client = CBORGClient(api_key)
+
+            # Get models list (only once per team, not per member)
+            if not all_models:
+                try:
+                    all_models = client.get_models()
+                except:
+                    pass
+
             spend_info = client.get_spend_info()
 
             if spend_info and spend_info.get('current_spend') is not None:
@@ -471,6 +537,59 @@ def show_team_dashboard(team_keys: List[Dict]):
 
         console.print(Panel(grid, title="[bold]Team Totals[/bold]",
                            border_style="green", box=box.ROUNDED))
+        console.print()
+
+    # Show frontier models if we have model data
+    if all_models:
+        def get_frontier_models(models: List[str]) -> Dict[str, List[str]]:
+            """Extract latest frontier models from major providers."""
+            frontier = {
+                'OpenAI': [],
+                'Anthropic': [],
+                'Google': []
+            }
+
+            # OpenAI frontier models
+            openai_priority = ['gpt-5.1', 'gpt-5', 'o4-mini', 'o3', 'gpt-4.1']
+            for model in openai_priority:
+                matching = [m for m in models if model in m.lower() and not any(x in m.lower() for x in ['mini', 'nano', 'high', 'codex']) or model == m.lower()]
+                if matching:
+                    frontier['OpenAI'].append(matching[0])
+                    if len(frontier['OpenAI']) >= 3:
+                        break
+
+            # Anthropic frontier models
+            anthropic_priority = ['claude-opus-4-5', 'claude-opus-4', 'claude-sonnet-4-5', 'claude-sonnet-4']
+            for model in anthropic_priority:
+                matching = [m for m in models if model in m.lower() and '@' not in m]
+                if matching:
+                    frontier['Anthropic'].append(matching[0])
+                    if len(frontier['Anthropic']) >= 2:
+                        break
+
+            # Google frontier models
+            google_priority = ['gemini-3-pro', 'gemini-2.5-pro', 'gemini-2.5-flash']
+            for model in google_priority:
+                matching = [m for m in models if model in m.lower() and 'high' not in m.lower() and 'lite' not in m.lower()]
+                if matching:
+                    frontier['Google'].append(matching[0])
+                    if len(frontier['Google']) >= 2:
+                        break
+
+            return frontier
+
+        frontier = get_frontier_models(all_models)
+        table = Table(title="[bold]Latest Frontier Models[/bold]",
+                     box=box.ROUNDED, border_style="blue")
+        table.add_column("Provider", style="cyan bold", width=12)
+        table.add_column("Flagship Models", style="white")
+
+        for provider, models in frontier.items():
+            if models:
+                models_str = ", ".join(models[:3])
+                table.add_row(provider, models_str)
+
+        console.print(table)
         console.print()
 
     # Footer
