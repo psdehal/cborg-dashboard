@@ -1,0 +1,22 @@
+{
+  "keys": [
+    {
+      "name": "Principal Investigator",
+      "email": "pi@lbl.gov",
+      "api_key": "sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "role": "PI"
+    },
+    {
+      "name": "Postdoc Researcher",
+      "email": "postdoc@lbl.gov",
+      "api_key": "sk-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
+      "role": "Postdoc"
+    },
+    {
+      "name": "Graduate Student",
+      "email": "student@lbl.gov",
+      "api_key": "sk-ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+      "role": "PhD Student"
+    }
+  ]
+}

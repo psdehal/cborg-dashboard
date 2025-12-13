@@ -3,8 +3,10 @@
 
 import os
 import sys
+import json
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
@@ -216,20 +218,203 @@ class CBORGDashboard:
             return "just now"
 
 
+def load_team_keys() -> Optional[List[Dict]]:
+    """Load team API keys from team_keys.json if it exists."""
+    team_keys_file = Path("team_keys.json")
+
+    if not team_keys_file.exists():
+        return None
+
+    try:
+        with open(team_keys_file, 'r') as f:
+            data = json.load(f)
+            return data.get('keys', [])
+    except Exception as e:
+        console = Console()
+        console.print(f"[red]Error loading team_keys.json: {e}[/red]")
+        return None
+
+
+def show_team_dashboard(team_keys: List[Dict]):
+    """Show dashboard for multiple team members."""
+    console = Console()
+    console.clear()
+
+    # Header
+    title = Text("CBORG Team Dashboard", style="bold cyan", justify="center")
+    subtitle = Text(f"Monitoring {len(team_keys)} team member(s)",
+                   style="dim", justify="center")
+    header = Panel(
+        Text.assemble(title, "\n", subtitle),
+        box=box.DOUBLE,
+        border_style="cyan"
+    )
+    console.print(header)
+    console.print()
+
+    # Collect spending data for all team members
+    team_data = []
+    total_spend = 0
+    total_budget = 0
+
+    for member in team_keys:
+        api_key = member.get('api_key')
+        name = member.get('name', 'Unknown')
+        role = member.get('role', 'N/A')
+        email = member.get('email', 'N/A')
+
+        if not api_key:
+            continue
+
+        try:
+            client = CBORGClient(api_key)
+            spend_info = client.get_spend_info()
+
+            if spend_info and spend_info.get('current_spend') is not None:
+                current_spend = spend_info.get('current_spend', 0)
+                budget_limit = spend_info.get('budget_limit', 0)
+                remaining = spend_info.get('remaining', 0)
+
+                team_data.append({
+                    'name': name,
+                    'role': role,
+                    'email': email,
+                    'spend': current_spend,
+                    'budget': budget_limit,
+                    'remaining': remaining
+                })
+
+                total_spend += current_spend
+                if budget_limit:
+                    total_budget += budget_limit
+            else:
+                team_data.append({
+                    'name': name,
+                    'role': role,
+                    'email': email,
+                    'spend': None,
+                    'budget': None,
+                    'remaining': None
+                })
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to fetch data for {name}: {e}[/yellow]")
+            team_data.append({
+                'name': name,
+                'role': role,
+                'email': email,
+                'spend': None,
+                'budget': None,
+                'remaining': None
+            })
+
+    # Display team spending table
+    table = Table(title="[bold]Team Spending Overview[/bold]",
+                 box=box.ROUNDED, border_style="magenta")
+    table.add_column("Name", style="cyan")
+    table.add_column("Role", style="dim")
+    table.add_column("Email", style="dim")
+    table.add_column("Current Spend", justify="right", style="white")
+    table.add_column("Budget", justify="right", style="white")
+    table.add_column("Remaining", justify="right", style="white")
+    table.add_column("Usage %", justify="right")
+
+    for member in team_data:
+        spend = member['spend']
+        budget = member['budget']
+        remaining = member['remaining']
+
+        spend_str = f"${spend:.2f}" if spend is not None else "N/A"
+        budget_str = f"${budget:.2f}" if budget is not None else "N/A"
+        remaining_str = f"${remaining:.2f}" if remaining is not None else "N/A"
+
+        if spend is not None and budget is not None and budget > 0:
+            usage_pct = (spend / budget * 100)
+
+            # Color code based on usage
+            if usage_pct >= 90:
+                usage_style = "red bold"
+            elif usage_pct >= 75:
+                usage_style = "yellow bold"
+            else:
+                usage_style = "green"
+
+            usage_str = f"[{usage_style}]{usage_pct:.1f}%[/{usage_style}]"
+        else:
+            usage_str = "N/A"
+
+        table.add_row(
+            member['name'],
+            member['role'],
+            member['email'],
+            spend_str,
+            budget_str,
+            remaining_str,
+            usage_str
+        )
+
+    console.print(table)
+    console.print()
+
+    # Show team totals
+    if total_budget > 0:
+        total_remaining = total_budget - total_spend
+        total_usage_pct = (total_spend / total_budget * 100)
+
+        if total_usage_pct >= 90:
+            usage_style = "red bold"
+        elif total_usage_pct >= 75:
+            usage_style = "yellow bold"
+        else:
+            usage_style = "green"
+
+        grid = Table.grid(padding=(0, 2))
+        grid.add_column(style="cyan", justify="right")
+        grid.add_column(style="white")
+
+        grid.add_row("Total Team Spend:", f"${total_spend:.2f}")
+        grid.add_row("Total Team Budget:", f"${total_budget:.2f}")
+        grid.add_row("Total Remaining:", f"${total_remaining:.2f}")
+        grid.add_row("Team Usage:", f"[{usage_style}]{total_usage_pct:.1f}%[/{usage_style}]")
+
+        console.print(Panel(grid, title="[bold]Team Totals[/bold]",
+                           border_style="green", box=box.ROUNDED))
+        console.print()
+
+    # Footer
+    footer = Text.assemble(
+        ("💡 Tip: ", "yellow bold"),
+        ("Run this dashboard regularly to monitor team usage. ", "white"),
+        ("Data stored locally in .cborg_data/", "dim"),
+    )
+    console.print(Panel(footer, border_style="dim", box=box.ROUNDED))
+
+
 def main():
     """Main entry point."""
-    api_key = os.environ.get('CBORG_API_KEY')
+    console = Console()
 
-    if not api_key:
-        console = Console()
-        console.print("[red]Error: CBORG_API_KEY environment variable not set[/red]")
-        console.print()
-        console.print("Set your API key with:")
-        console.print("  [cyan]export CBORG_API_KEY=your-key-here[/cyan]")
-        sys.exit(1)
+    # Check for team keys first
+    team_keys = load_team_keys()
 
-    dashboard = CBORGDashboard(api_key)
-    dashboard.run()
+    if team_keys:
+        # Team mode
+        show_team_dashboard(team_keys)
+    else:
+        # Single user mode (original behavior)
+        api_key = os.environ.get('CBORG_API_KEY')
+
+        if not api_key:
+            console.print("[red]Error: CBORG_API_KEY environment variable not set[/red]")
+            console.print()
+            console.print("Set your API key with:")
+            console.print("  [cyan]export CBORG_API_KEY=your-key-here[/cyan]")
+            console.print()
+            console.print("[yellow]Or create team_keys.json for multi-user tracking[/yellow]")
+            console.print("  See team_keys.json.template for example")
+            sys.exit(1)
+
+        dashboard = CBORGDashboard(api_key)
+        dashboard.run()
 
 
 if __name__ == "__main__":

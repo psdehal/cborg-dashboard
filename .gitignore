@@ -16,6 +16,8 @@ htmlcov/
 .cborg_data/
 *.json
 !package.json
+!team_keys.json.template
+team_keys.json
 .env
 *.log
 
