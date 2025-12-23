@@ -30,55 +30,46 @@ class CBORGDashboard:
         self.client = CBORGClient(api_key)
         self.storage = CBORGStorage()
 
-    def _get_frontier_models(self, all_models: List[str]) -> Dict[str, List[str]]:
-        """Extract latest frontier models from major providers."""
-        frontier = {
-            'OpenAI': [],
-            'Anthropic': [],
-            'Google': []
+    def _get_provider_models(self, all_models: List[str], max_per_provider: int = 5) -> Dict[str, List[str]]:
+        """Extract models from major providers, sorted reverse alphabetically (newest versions first)."""
+        # Provider prefixes to look for (excluding xai/grok)
+        providers = {
+            'OpenAI': 'openai/',
+            'Anthropic': 'anthropic/',
+            'Google': 'google/',
+            'LBL': 'lbl/'
         }
 
-        # OpenAI frontier models (prioritize GPT-5.x, O-series)
-        openai_priority = ['gpt-5.1', 'gpt-5', 'o4-mini', 'o3', 'gpt-4.1']
-        for model in openai_priority:
-            matching = [m for m in all_models if model in m.lower() and not any(x in m.lower() for x in ['mini', 'nano', 'high', 'codex']) or model == m.lower()]
-            if matching:
-                frontier['OpenAI'].append(matching[0])
-                if len(frontier['OpenAI']) >= 3:
-                    break
+        result = {}
+        for name, prefix in providers.items():
+            # Filter models by prefix, exclude variants (high, mini, nano, lite, codex)
+            # and sort reverse alphabetically to show newest versions first
+            provider_models = [m for m in all_models if m.lower().startswith(prefix)]
+            # Filter out variants to show cleaner list
+            clean_models = [m for m in provider_models
+                          if not any(v in m.lower() for v in ['-high', '-mini', '-nano', '-lite', 'codex', ':latest', ':chat'])]
+            # Fall back to all if filtering removes everything
+            if not clean_models:
+                clean_models = provider_models
+            result[name] = sorted(clean_models, reverse=True)[:max_per_provider]
 
-        # Anthropic frontier models (Opus > Sonnet > Haiku, prefer 4.5)
-        anthropic_priority = ['claude-opus-4-5', 'claude-opus-4', 'claude-sonnet-4-5', 'claude-sonnet-4']
-        for model in anthropic_priority:
-            matching = [m for m in all_models if model in m.lower() and '@' not in m]
-            if matching:
-                frontier['Anthropic'].append(matching[0])
-                if len(frontier['Anthropic']) >= 2:
-                    break
+        return result
 
-        # Google frontier models (Gemini 3 > 2.5)
-        google_priority = ['gemini-3-pro', 'gemini-2.5-pro', 'gemini-2.5-flash']
-        for model in google_priority:
-            matching = [m for m in all_models if model in m.lower() and 'high' not in m.lower() and 'lite' not in m.lower()]
-            if matching:
-                frontier['Google'].append(matching[0])
-                if len(frontier['Google']) >= 2:
-                    break
+    def _show_provider_models(self, all_models: List[str]):
+        """Display models from major providers."""
+        provider_models = self._get_provider_models(all_models)
 
-        return frontier
-
-    def _show_frontier_models(self, all_models: List[str]):
-        """Display latest frontier models from major providers."""
-        frontier = self._get_frontier_models(all_models)
-
-        table = Table(title="[bold]Latest Frontier Models[/bold]",
+        table = Table(title="[bold]Models by Provider[/bold]",
                      box=box.ROUNDED, border_style="blue")
         table.add_column("Provider", style="cyan bold", width=12)
-        table.add_column("Flagship Models", style="white")
+        table.add_column("Models", style="white")
 
-        for provider, models in frontier.items():
+        for provider, models in provider_models.items():
             if models:
-                models_str = ", ".join(models[:3])  # Max 3 models per provider
+                # Strip provider prefix for cleaner display
+                prefix = provider.lower() + '/'
+                display_models = [m.replace(prefix, '').replace(prefix.upper(), '') for m in models]
+                models_str = ", ".join(display_models)
                 table.add_row(provider, models_str)
 
         self.console.print(table)
@@ -167,7 +158,7 @@ class CBORGDashboard:
         self._show_all_models(result['all_models'])
 
         # Show frontier models
-        self._show_frontier_models(result['all_models'])
+        self._show_provider_models(result['all_models'])
 
     def _show_new_models(self, new_models: list):
         """Display new models in a highlighted table."""
@@ -568,54 +559,41 @@ def show_team_dashboard(team_keys: List[Dict]):
                            border_style="green", box=box.ROUNDED))
         console.print()
 
-    # Show frontier models if we have model data
+    # Show models by provider if we have model data
     if all_models:
-        def get_frontier_models(models: List[str]) -> Dict[str, List[str]]:
-            """Extract latest frontier models from major providers."""
-            frontier = {
-                'OpenAI': [],
-                'Anthropic': [],
-                'Google': []
+        def get_provider_models(models: List[str], max_per_provider: int = 5) -> Dict[str, List[str]]:
+            """Extract models from major providers, sorted reverse alphabetically (newest versions first)."""
+            providers = {
+                'OpenAI': 'openai/',
+                'Anthropic': 'anthropic/',
+                'Google': 'google/',
+                'LBL': 'lbl/'
             }
 
-            # OpenAI frontier models
-            openai_priority = ['gpt-5.1', 'gpt-5', 'o4-mini', 'o3', 'gpt-4.1']
-            for model in openai_priority:
-                matching = [m for m in models if model in m.lower() and not any(x in m.lower() for x in ['mini', 'nano', 'high', 'codex']) or model == m.lower()]
-                if matching:
-                    frontier['OpenAI'].append(matching[0])
-                    if len(frontier['OpenAI']) >= 3:
-                        break
+            result = {}
+            for name, prefix in providers.items():
+                provider_models = [m for m in models if m.lower().startswith(prefix)]
+                # Filter out variants to show cleaner list
+                clean_models = [m for m in provider_models
+                              if not any(v in m.lower() for v in ['-high', '-mini', '-nano', '-lite', 'codex', ':latest', ':chat'])]
+                if not clean_models:
+                    clean_models = provider_models
+                result[name] = sorted(clean_models, reverse=True)[:max_per_provider]
 
-            # Anthropic frontier models
-            anthropic_priority = ['claude-opus-4-5', 'claude-opus-4', 'claude-sonnet-4-5', 'claude-sonnet-4']
-            for model in anthropic_priority:
-                matching = [m for m in models if model in m.lower() and '@' not in m]
-                if matching:
-                    frontier['Anthropic'].append(matching[0])
-                    if len(frontier['Anthropic']) >= 2:
-                        break
+            return result
 
-            # Google frontier models
-            google_priority = ['gemini-3-pro', 'gemini-2.5-pro', 'gemini-2.5-flash']
-            for model in google_priority:
-                matching = [m for m in models if model in m.lower() and 'high' not in m.lower() and 'lite' not in m.lower()]
-                if matching:
-                    frontier['Google'].append(matching[0])
-                    if len(frontier['Google']) >= 2:
-                        break
-
-            return frontier
-
-        frontier = get_frontier_models(all_models)
-        table = Table(title="[bold]Latest Frontier Models[/bold]",
+        provider_models = get_provider_models(all_models)
+        table = Table(title="[bold]Models by Provider[/bold]",
                      box=box.ROUNDED, border_style="blue")
         table.add_column("Provider", style="cyan bold", width=12)
-        table.add_column("Flagship Models", style="white")
+        table.add_column("Models", style="white")
 
-        for provider, models in frontier.items():
+        for provider, models in provider_models.items():
             if models:
-                models_str = ", ".join(models[:3])
+                # Strip provider prefix for cleaner display
+                prefix = provider.lower() + '/'
+                display_models = [m.replace(prefix, '').replace(prefix.upper(), '') for m in models]
+                models_str = ", ".join(display_models)
                 table.add_row(provider, models_str)
 
         console.print(table)
